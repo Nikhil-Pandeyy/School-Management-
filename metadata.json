@@ -1,0 +1,9 @@
+{
+  "name": "EduCloud AIA",
+  "description": "Premium multi-tenant School Management SaaS with AI-powered insights, real-time communication, and automated administration.",
+  "requestFramePermissions": [
+    "camera",
+    "microphone"
+  ],
+  "majorCapabilities": []
+}

@@ -1,0 +1,215 @@
+rules_version = '2';
+service cloud.firestore {
+  match /databases/{database}/documents {
+    // 0. Global Safety Net
+    match /{document=**} {
+      allow read, write: if false;
+    }
+
+    // Helper functions
+    function isSignedIn() { return request.auth != null; }
+    function isEmailVerified() { return isSignedIn() && request.auth.token.email_verified == true; }
+    function isValidId(id) { return id is string && id.size() <= 128 && id.matches('^[a-zA-Z0-9_\\-]+$'); }
+    
+    function getUserData() { 
+      return get(/databases/$(database)/documents/users/$(request.auth.uid)).data; 
+    }
+
+    function userExists() {
+      return exists(/databases/$(database)/documents/users/$(request.auth.uid));
+    }
+    
+    function isSchoolMember(schoolId) { 
+      return isSignedIn() && (
+        request.auth.token.email == 'NIKHIL415478@gmail.com' || (
+          userExists() && getUserData().schoolId == schoolId
+        )
+      );
+    }
+    
+    function isRole(role) { 
+      return isSignedIn() && (
+        request.auth.token.email == 'NIKHIL415478@gmail.com' || (
+          userExists() && getUserData().role == role
+        )
+      );
+    }
+
+    function isSchoolAdmin() {
+      return isRole('school-admin');
+    }
+
+    function incoming() { return request.resource.data; }
+    function existing() { return resource.data; }
+
+    // Validation Blueprints
+    function isValidUser(data) {
+      return (data.uid is string || !('uid' in data)) && 
+             data.schoolId is string && 
+             data.role in ['super-admin', 'school-admin', 'teacher', 'student', 'parent'] &&
+             data.email is string &&
+             (data.displayName is string || !('displayName' in data)) &&
+             (data.uniqueId is string && (data.uniqueId.size() <= 20) || !('uniqueId' in data)) &&
+             (data.dob is string || !('dob' in data));
+    }
+
+    function isValidSchool(data) {
+      return (data.name is string || !('name' in data)) &&
+             (data.schoolCode is string || !('schoolCode' in data)) &&
+             (data.permissions is map || !('permissions' in data)) &&
+             (data.subscriptionStatus in ['active', 'trial', 'expired'] || !('subscriptionStatus' in data)) &&
+             (data.trialStartedAt is string || !('trialStartedAt' in data)) &&
+             (data.trialEndsAt is string || !('trialEndsAt' in data)) &&
+             (data.updatedAt is string || !('updatedAt' in data));
+    }
+
+    function isValidPersonalData(data) {
+      return (data.fullName is string || !('fullName' in data)) &&
+             (data.personalEmail is string || !('personalEmail' in data)) &&
+             (data.personalPhone is string || !('personalPhone' in data)) &&
+             (data.bio is string || !('bio' in data)) &&
+             (data.updatedAt is string || !('updatedAt' in data));
+    }
+
+    function isValidClass(data) {
+      return data.schoolId is string && 
+             data.name is string && 
+             (data.section is string || !('section' in data));
+    }
+
+    function isValidAttendance(data) {
+      return data.schoolId is string && 
+             data.classId is string && 
+             data.date is string &&
+             data.submittedAt is string;
+    }
+
+    function isValidResult(data) {
+      return data.schoolId is string && 
+             data.studentId is string && 
+             data.subject is string &&
+             data.term is string &&
+             data.year is string;
+    }
+
+    function isValidApplication(data) {
+      return data.schoolId is string && 
+             data.studentId is string && 
+             data.type is string &&
+             data.title is string &&
+             data.content is string &&
+             data.status in ["pending", "approved", "rejected"];
+    }
+
+    function isValidChat(data) {
+      return data.schoolId is string &&
+             data.members is list &&
+             data.members.size() > 0;
+    }
+
+    // Schools base document
+    match /schools/{schoolId} {
+      allow get: if true; 
+      allow list: if request.query.limit == 1; 
+      allow create: if isSignedIn(); 
+      allow update: if isSchoolMember(schoolId) && isSchoolAdmin() && isValidSchool(incoming());
+
+      // Nested Collections under each school
+      
+      // Users within this school
+      match /users/{userId} {
+        allow get: if isSchoolMember(schoolId);
+        allow list: if isSchoolMember(schoolId);
+        allow create: if isSchoolMember(schoolId) && (
+          (request.auth.uid == userId && isValidUser(incoming())) ||
+          (isSchoolAdmin() && isValidUser(incoming()))
+        );
+        allow update: if isSchoolMember(schoolId) && (
+          (userId == request.auth.uid && incoming().diff(existing()).affectedKeys().hasOnly(['displayName', 'photoURL', 'mobile', 'address', 'bio', 'phoneNumber', 'updatedAt'])) ||
+          isSchoolAdmin()
+        );
+        allow delete: if isSchoolMember(schoolId) && isSchoolAdmin();
+
+        match /private/personal {
+          allow read, write: if isSignedIn() && request.auth.uid == userId && isValidPersonalData(incoming() || existing());
+        }
+      }
+
+      // Classes
+      match /classes/{classId} {
+        allow read: if isSchoolMember(schoolId);
+        allow create: if isSchoolMember(schoolId) && isSchoolAdmin() && isValidClass(incoming());
+        allow update: if isSchoolMember(schoolId) && (isSchoolAdmin() || isRole('teacher'));
+        allow delete: if isSchoolMember(schoolId) && isSchoolAdmin();
+      }
+
+      // Attendance
+      match /attendance/{attendanceId} {
+        allow read: if isSchoolMember(schoolId);
+        allow create: if isSchoolMember(schoolId) && (isRole('teacher') || isSchoolAdmin()) && isValidAttendance(incoming());
+        allow update: if isSchoolMember(schoolId) && (isSchoolAdmin() || (isRole('teacher') && !existing().get('isLocked', false)));
+        allow delete: if isSchoolMember(schoolId) && isSchoolAdmin();
+      }
+
+      // Complaints
+      match /complaints/{complaintId} {
+        allow read: if isSchoolMember(schoolId) && (isSchoolAdmin() || resource.data.userId == request.auth.uid);
+        allow create: if isSchoolMember(schoolId);
+        allow update: if isSchoolMember(schoolId) && isSchoolAdmin();
+      }
+
+      // Results
+      match /results/{resultId} {
+        allow read: if isSchoolMember(schoolId);
+        allow create: if isSchoolMember(schoolId) && (isRole('teacher') || isSchoolAdmin()) && isValidResult(incoming());
+        allow update: if isSchoolMember(schoolId) && (isRole('teacher') || isSchoolAdmin());
+      }
+
+      // Applications
+      match /applications/{applicationId} {
+        allow read: if isSchoolMember(schoolId) && (isRole('teacher') || isSchoolAdmin() || resource.data.studentId == request.auth.uid);
+        allow create: if isSchoolMember(schoolId) && (isRole('student') || isRole('parent') || isRole('teacher'));
+        allow update: if isSchoolMember(schoolId) && (isRole('teacher') || isSchoolAdmin());
+      }
+
+      // Deletion Logs
+      match /deletion_logs/{logId} {
+        allow read: if isSchoolMember(schoolId) && isSchoolAdmin();
+        allow create: if isSchoolMember(schoolId) && isSchoolAdmin();
+      }
+      
+      // Global Messages at school level (for system broadcusts)
+      match /messages/{messageId} {
+        allow read: if isSchoolMember(schoolId);
+        allow create, update, delete: if isSchoolMember(schoolId) && isSchoolAdmin();
+      }
+
+      // Chats and Messages
+      match /chats/{chatId} {
+        allow read: if isSchoolMember(schoolId) && (isSchoolAdmin() || existing().isPublic == true || request.auth.uid in existing().members);
+        allow create: if isSchoolMember(schoolId) && (isSchoolAdmin() || isRole('teacher') || incoming().type == 'direct') && isValidChat(incoming());
+        allow update: if isSchoolMember(schoolId) && (isSchoolAdmin() || request.auth.uid in existing().members);
+        allow delete: if isSchoolMember(schoolId) && (isSchoolAdmin() || existing().createdBy == request.auth.uid);
+
+        match /messages/{messageId} {
+          allow read: if isSchoolMember(schoolId) && (isSchoolAdmin() || get(/databases/$(database)/documents/schools/$(schoolId)/chats/$(chatId)).data.isPublic == true || request.auth.uid in get(/databases/$(database)/documents/schools/$(schoolId)/chats/$(chatId)).data.members);
+          allow create: if isSchoolMember(schoolId) && (isSchoolAdmin() || get(/databases/$(database)/documents/schools/$(schoolId)/chats/$(chatId)).data.isPublic == true || request.auth.uid in get(/databases/$(database)/documents/schools/$(schoolId)/chats/$(chatId)).data.members);
+          allow delete: if isSchoolMember(schoolId) && (resource.data.senderId == request.auth.uid || isSchoolAdmin());
+        }
+      }
+    }
+
+    // Global User Index for school mapping
+    match /users/{userId} {
+      allow get: if true; 
+      allow list: if request.query.limit == 1;
+      allow create: if isSignedIn() && (request.auth.uid == userId || isSchoolAdmin());
+      allow update: if isSignedIn() && (request.auth.uid == userId || isSchoolAdmin());
+      allow delete: if isSchoolAdmin();
+    }
+
+    match /test/connection {
+      allow get: if true;
+    }
+  }
+}

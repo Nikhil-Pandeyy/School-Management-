@@ -1,0 +1,222 @@
+{
+  "entities": {
+    "schools": {
+      "title": "School",
+      "description": "Represents a tenant school in the system.",
+      "type": "object",
+      "properties": {
+        "name": { "type": "string" },
+        "address": { "type": "string" },
+        "schoolCode": { "type": "string", "description": "Unique numeric code for the school (e.g. 101010)" },
+        "contactEmail": { "type": "string" },
+        "subscriptionStatus": { "type": "string", "enum": ["active", "trial", "expired"] },
+        "trialStartedAt": { "type": "string", "format": "date-time" },
+        "trialEndsAt": { "type": "string", "format": "date-time" },
+        "permissions": {
+            "type": "object",
+            "properties": {
+                "enableAttendance": { "type": "boolean", "default": true },
+                "enableResults": { "type": "boolean", "default": true },
+                "enableComplaints": { "type": "boolean", "default": true },
+                "enableChat": { "type": "boolean", "default": true },
+                "enableApplications": { "type": "boolean", "default": true },
+                "enableBirthdays": { "type": "boolean", "default": true },
+                "allowStudentToStudentChat": { "type": "boolean", "default": false }
+            }
+        },
+        "createdAt": { "type": "string", "format": "date-time" }
+      },
+      "required": ["name", "schoolCode"]
+    },
+    "userPersonalData": {
+        "title": "User Personal Data",
+        "description": "Sensitive personal information stored separately for security.",
+        "type": "object",
+        "properties": {
+            "fullName": { "type": "string" },
+            "personalEmail": { "type": "string" },
+            "personalPhone": { "type": "string" },
+            "homeAddress": { "type": "string" },
+            "emergencyContact": { "type": "string" },
+            "bankAccount": { "type": "string" },
+            "taxId": { "type": "string" },
+            "bio": { "type": "string" },
+            "updatedAt": { "type": "string", "format": "date-time" }
+        }
+    },
+    "users": {
+        "title": "User",
+        "description": "Common user entity for admins, teachers, parents and students.",
+        "type": "object",
+        "properties": {
+            "uid": { "type": "string" },
+            "schoolId": { "type": "string" },
+            "role": { "type": "string", "enum": ["super-admin", "school-admin", "teacher", "student", "parent"] },
+            "email": { "type": "string" },
+            "displayName": { "type": "string" },
+            "uniqueId": { "type": "string", "description": "5-digit numeric ID (10000-99999)" },
+            "mobile": { "type": "string" },
+            "address": { "type": "string" },
+            "age": { "type": "number" },
+            "qualification": { "type": "string", "description": "For teachers" },
+            "subject": { "type": "string", "description": "For teachers" },
+            "studentId": { "type": "string", "description": "For parents, the ID of their child" },
+            "classId": { "type": "string" },
+            "section": { "type": "string" },
+            "assignedClasses": { "type": "array", "description": "List of class IDs assigned to a teacher" },
+            "photoURL": { "type": "string" },
+            "dob": { "type": "string", "format": "date", "description": "Date of Birth" },
+            "hideBirthday": { "type": "boolean", "default": false, "description": "Privacy setting for birthday visibility" },
+            "createdAt": { "type": "string", "format": "date-time" }
+        },
+        "required": ["uid", "schoolId", "role", "email"]
+    },
+    "classes": {
+        "title": "Class",
+        "description": "Represents a class room or grade/section.",
+        "type": "object",
+        "properties": {
+            "schoolId": { "type": "string" },
+            "name": { "type": "string" },
+            "section": { "type": "string" },
+            "teacherId": { "type": "string" },
+            "studentCount": { "type": "number" }
+        },
+        "required": ["schoolId", "name", "section"]
+    },
+    "attendance": {
+        "title": "Attendance record",
+        "description": "Daily attendance logs for a class.",
+        "type": "object",
+        "properties": {
+            "schoolId": { "type": "string" },
+            "classId": { "type": "string" },
+            "teacherId": { "type": "string" },
+            "date": { "type": "string", "format": "date" },
+            "time": { "type": "string" },
+            "records": { "type": "object" },
+            "remarks": { "type": "string" },
+            "submittedAt": { "type": "string", "format": "date-time" },
+            "isLocked": { "type": "boolean" }
+        },
+        "required": ["schoolId", "classId", "date", "records", "submittedAt"]
+    },
+    "complaints": {
+        "title": "Complaint",
+        "description": "Complaints raised by users.",
+        "type": "object",
+        "properties": {
+            "schoolId": { "type": "string" },
+            "userId": { "type": "string" },
+            "userRole": { "type": "string" },
+            "title": { "type": "string" },
+            "message": { "type": "string" },
+            "status": { "type": "string", "enum": ["pending", "resolved"] },
+            "createdAt": { "type": "string", "format": "date-time" }
+        },
+        "required": ["schoolId", "userId", "message"]
+    },
+    "messages": {
+        "title": "Message",
+        "description": "Chat messages with support for text, images, and documents.",
+        "type": "object",
+        "properties": {
+            "schoolId": { "type": "string" },
+            "chatId": { "type": "string" },
+            "senderId": { "type": "string" },
+            "senderName": { "type": "string" },
+            "senderRole": { "type": "string" },
+            "text": { "type": "string" },
+            "attachment": {
+                "type": "object",
+                "properties": {
+                    "url": { "type": "string" },
+                    "name": { "type": "string" },
+                    "type": { "type": "string" },
+                    "size": { "type": "number" }
+                }
+            },
+            "createdAt": { "type": "string", "format": "date-time" }
+        },
+        "required": ["schoolId", "chatId", "senderId", "text", "createdAt"]
+    },
+    "results": {
+        "title": "Result",
+        "description": "Academic performance records.",
+        "type": "object",
+        "properties": {
+            "schoolId": { "type": "string" },
+            "studentId": { "type": "string" },
+            "studentName": { "type": "string" },
+            "studentUniqueId": { "type": "string" },
+            "subject": { "type": "string" },
+            "marks": { "type": "number" },
+            "totalMarks": { "type": "number" },
+            "percentage": { "type": "number" },
+            "term": { "type": "string" },
+            "year": { "type": "string" },
+            "teacherId": { "type": "string" },
+            "teacherName": { "type": "string" },
+            "remarks": { "type": "string" },
+            "createdAt": { "type": "string", "format": "date-time" }
+        },
+        "required": ["schoolId", "studentId", "subject", "marks", "term", "year"]
+    },
+    "chats": {
+        "title": "Chat Channel",
+        "description": "Metadata for group conversations and direct messages.",
+        "type": "object",
+        "properties": {
+            "schoolId": { "type": "string" },
+            "name": { "type": "string", "description": "Group name or 'Direct Message'" },
+            "members": { "type": "array", "items": { "type": "string" } },
+            "createdBy": { "type": "string" },
+            "creatorName": { "type": "string" },
+            "type": { "type": "string", "enum": ["group", "direct"] },
+            "lastMessage": { "type": "string" },
+            "lastMessageBy": { "type": "string" },
+            "lastMessageAt": { "type": "string", "format": "date-time" },
+            "createdAt": { "type": "string", "format": "date-time" }
+        },
+        "required": ["schoolId", "members", "type"]
+    },
+    "applications": {
+        "title": "Application",
+        "description": "Student/Staff applications/requests (leave, permission, etc).",
+        "type": "object",
+        "properties": {
+            "schoolId": { "type": "string" },
+            "studentId": { "type": "string" },
+            "studentName": { "type": "string" },
+            "studentRole": { "type": "string" },
+            "uniqueId": { "type": "string" },
+            "classId": { "type": "string" },
+            "type": { "type": "string" },
+            "title": { "type": "string" },
+            "content": { "type": "string" },
+            "fromDate": { "type": "string", "format": "date" },
+            "toDate": { "type": "string", "format": "date" },
+            "urgency": { "type": "string", "enum": ["Normal", "Urgent"] },
+            "attachments": { "type": "array" },
+            "status": { "type": "string", "enum": ["pending", "approved", "rejected"] },
+            "reviewedBy": { "type": "string" },
+            "reviewNote": { "type": "string" },
+            "createdAt": { "type": "string", "format": "date-time" }
+        },
+        "required": ["schoolId", "studentId", "type", "title", "content"]
+    }
+  },
+  "firestore": {
+    "/schools/{schoolId}": { "schema": "schools", "description": "Main school documents" },
+    "/users/{userId}": { "schema": "users", "description": "Global user index for school mapping" },
+    "/schools/{schoolId}/users/{userId}": { "schema": "users", "description": "Full user profile within a school" },
+    "/schools/{schoolId}/users/{userId}/private/personal": { "schema": "userPersonalData", "description": "Sensitive personal info" },
+    "/schools/{schoolId}/classes/{classId}": { "schema": "classes", "description": "Class levels within a school" },
+    "/schools/{schoolId}/attendance/{attendanceId}": { "schema": "attendance", "description": "Daily attendance logs" },
+    "/schools/{schoolId}/complaints/{complaintId}": { "schema": "complaints", "description": "User raised issues" },
+    "/schools/{schoolId}/chats/{chatId}": { "schema": "chats", "description": "Chat group metadata" },
+    "/schools/{schoolId}/chats/{chatId}/messages/{messageId}": { "schema": "messages", "description": "Chat logs within groups" },
+    "/schools/{schoolId}/results/{resultId}": { "schema": "results", "description": "Academic records" },
+    "/schools/{schoolId}/applications/{applicationId}": { "schema": "applications", "description": "Student requests" }
+  }
+}
